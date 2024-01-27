@@ -1,4 +1,5 @@
-const tablaHTML=document.getElementById("tablaProductos");
+const tablaInsumos=document.getElementById("tablaInsumos");
+const tablaInsumosFaltantes=document.getElementById("tablaInsumosFaltantes");
 
 const Toast = Swal.mixin({
     toast: true,
@@ -29,7 +30,7 @@ class ClaseStock{
             this.stockProductos=JSON.parse(auxiliar);
             this.cantInsumos = this.stockProductos.length;
         }
-        this.mostrarProductos();
+        this.actualizarPagina();
     }
 
 guardarStock(){
@@ -45,24 +46,33 @@ ordenarInsumos(){
     })
 }
 
-actualizarStock=(fila, valor)=>{
+actualizarStock(fila, valor){
     if((valor<0) || (typeof(valor)!=="number"))
         {valor=0;
         }
     this.stockProductos[fila][1]=valor;
-    const lista = tablaHTML.getElementsByClassName("cantidad");
-    lista[fila].innerHTML=valor;
     this.guardarStock();
-    this.mostrarInformacionInsumos();
+    this.actualizarPagina();
+}
+
+actualizarStockMinimo(fila, valor){
+    if((valor<0) || (typeof(valor)!=="number"))
+        {valor=0;
+        }
+    this.stockProductos[fila][2]=valor;
+    this.guardarStock();
+    this.actualizarPagina();
 }
 
 encabezadoTabla(){
-    tablaHTML.innerHTML=`
+    tablaInsumos.innerHTML=`
     <tr style="background-color: rgb(207, 212, 209);">
     <td><strong>Insumo</strong></td>
-    <td><strong>Cant</strong></td>
+    <td><strong>Stock</strong></td>
     <td><strong>Vaciar</strong></td>
     <td><strong>Agregar/Quitar Stock</strong></td>
+    <td><strong>Stock minimo</strong></td>
+    <td><strong>Establecer stock minimo</strong></td>
     <td><strong>Eliminar insumo</strong></td>
     </tr>
     `
@@ -72,8 +82,7 @@ eliminarInsumo(fila){
     this.stockProductos.splice(fila,1);
     this.cantInsumos--;
     this.guardarStock();
-    this.encabezadoTabla();
-    this.mostrarProductos();
+    this.actualizarPagina();
 }
 
 existeInsumo(texto){
@@ -87,11 +96,10 @@ existeInsumo(texto){
 }
 
 agregarInsumo(insumo){
-    this.stockProductos.push([insumo,0]);
+    this.stockProductos.push([insumo,0,0]);
     this.cantInsumos++;
     this.guardarStock();
-    this.encabezadoTabla();
-    this.mostrarProductos();
+    this.actualizarPagina();
 }
 
 totalStock(){
@@ -105,24 +113,60 @@ mostrarInformacionInsumos(){
     informacionInsumos.innerHTML=`
     <strong>Cantidad de Insumos: </strong>${this.cantInsumos}<br> 
     <strong>Total de stock: </strong>${this.totalStock()}<br> 
-    <br>
-    `;
+    <br>`;
+}
+
+mostrarInformacionInsumosFaltantes(){
+    tablaInsumosFaltantes.innerHTML=`
+        <tr style="background-color: rgb(207, 212, 209);">
+        <td><strong>Insumo</strong></td>
+        <td><strong>Stock</strong></td>
+        <td><strong>Stock minimo</strong></td>
+        <td><strong>Faltantes</strong></td>
+        </tr>`;
+    this.stockProductos.forEach(([insumo,stock,stockMinimo]) => {
+        let cantInsumosBajoStock=0;
+        if (stock<stockMinimo){
+            const fila =document.createElement("tr");
+            fila.innerHTML= `
+                <td><strong>${insumo}</strong></td>
+                <td style="text-align:center">${stock}</td>
+                <td style="text-align:center">${stockMinimo}</td>
+                <td style="text-align:center; background-color: rgb(232, 157, 76);">${stockMinimo-stock}</td>
+                `;
+            tablaInsumosFaltantes.appendChild(fila); 
+            cantInsumosBajoStock++;
+        }
+        if (cantInsumosBajoStock=0){
+            const mensaje =document.createElement("div");
+            mensaje.innerText="No se encontraron insumos con valor por debado del stock minimo";
+            tablaInsumosFaltantes.appendChild(mensaje);
+        }
+    });
+}
+
+actualizarPagina(){
+    this.mostrarInformacionInsumos();
+    this.mostrarInformacionInsumosFaltantes();
+    this.mostrarProductos();
 }
 
 mostrarProductos(){
-    this.mostrarInformacionInsumos();
     this.encabezadoTabla();
-    this.stockProductos.forEach(([insumo,stock],filaNum) => {
+    this.stockProductos.forEach(([insumo,stock,stockMinimo],filaNum) => {
         const fila =document.createElement("tr");
         fila.innerHTML= `
             <td><strong>${insumo}</strong></td>
-            <td class="cantidad">${stock}</td>
+            <td class="cantidad" style="text-align:center">${stock}</td>
             <td><input id="botonVaciar${filaNum}" type="button" value="Vaciar"></td>
             <td><input id="botonSumar${filaNum}" type="button" value="Sumar">
                 <input id="cantidadSumar${filaNum}" type="text" size="4"></td>
+            <td class="cantidadMinima" style="text-align:center">${stockMinimo}</td>
+            <td><input id="botonStockMinimo${filaNum}" type="button" value="Establecer">
+                <input id="cantidadStockMinimo${filaNum}" type="text" size="4"></td>
             <td><input id="botonEliminar${filaNum}" type="button" value="Eliminar"></td>
             `;
-        tablaHTML.appendChild(fila);
+        tablaInsumos.appendChild(fila);
         
         //Vaciar
         const botonVaciar=document.getElementById(`botonVaciar${filaNum}`);
@@ -142,6 +186,18 @@ mostrarProductos(){
             }
         });
         
+        //Establecer el stock minimo
+        const botonStockMinimo=document.getElementById(`botonStockMinimo${filaNum}`);
+        botonStockMinimo.addEventListener("click",()=>{
+            const cantidadStockMinimo=document.getElementById(`cantidadStockMinimo${filaNum}`);
+            const cantidad= parseInt(cantidadStockMinimo.value);
+            if (!(isNaN(cantidad))){
+                this.actualizarStockMinimo(filaNum,cantidad);
+            } else {
+                Toast.fire({icon: "warning", title: "Ingrese un valor numerico"});
+            }
+        });
+
         //eliminar
         const botonEliminar=document.getElementById(`botonEliminar${filaNum}`);
         botonEliminar.addEventListener("click",()=>{
